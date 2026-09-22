@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {encode,decode,trim,detectPitch} from '../dist/audio-utils.js';
+import {encode,decode,trim,detectPitch} from '../docs/audio-utils.js';
 const rate=32000;
 for(const frequency of [110,220,261.625565,440,880]){const sample=Float32Array.from({length:rate},(_,i)=>.7*Math.sin(2*Math.PI*frequency*i/rate)*Math.min(1,i/100));const bytes=encode(sample),result=decode(bytes);assert.equal(result.length,sample.length);assert.ok(bytes.length<sample.length*.51);let energy=0,error=0;for(let i=100;i<sample.length;i++){energy+=sample[i]**2;error+=(sample[i]-result[i])**2;}assert.ok(10*Math.log10(energy/error)>25,`SNR ${frequency}`);assert.ok(Math.abs(detectPitch(result,rate)/frequency-1)<.01,`pitch ${frequency}`);}
 const padded=new Float32Array(rate);for(let i=4000;i<12000;i++)padded[i]=.1*Math.sin(2*Math.PI*440*i/rate);const trimmed=trim(padded,rate);assert.ok(trimmed.length<10000&&trimmed.length>8000);assert.throws(()=>trim(new Float32Array(rate),rate),/quiet/);assert.equal(detectPitch(new Float32Array(rate),rate),null);assert.throws(()=>decode(new Uint8Array(8)),/Invalid sample/);console.log('Audio checks passed: codec size and SNR, five pitches, silence trimming, and invalid data.');

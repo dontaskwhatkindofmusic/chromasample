@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "test": "node tests/audio.test.mjs && node tests/keyboard.test.mjs",
-    "start": "python3 -m http.server 4173 --bind 127.0.0.1 --directory dist"
+    "start": "python3 -m http.server 4173 --bind 127.0.0.1 --directory docs"
   }
 }

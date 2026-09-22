@@ -37,5 +37,9 @@ Desktop.ini
 .idea/
 .vscode/
 
-# dist/ is authored source in this buildless PWA: keep it tracked.
-# .openai/hosting.json is required deployment configuration: keep it tracked.
+# Local hosting metadata and generated build output
+.openai/
+dist/
+build/
+
+# docs/ contains the authored GitHub Pages site: keep it tracked.

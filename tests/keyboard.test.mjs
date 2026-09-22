@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {noteAtPoint} from '../dist/keyboard.js';
+import {noteAtPoint} from '../docs/keyboard.js';
 // Same 4 × 4 layout at compact portrait and landscape pad sizes.
 for (const size of [62, 78, 110]) {
   const gap = 4, left = 17, top = 93;
