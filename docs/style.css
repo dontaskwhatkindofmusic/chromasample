@@ -187,3 +187,71 @@ dialog{color:var(--ink);background:#111610;border:1px solid #667856;box-shadow:8
   .eyebrow, .muted, #recordHint { display: none; }
   .machine { gap: 8px; }
 }
+/* Full-height playing surface: controls above, thumb-accessible chords below. */
+.machine { display: flex; flex-direction: column; max-width: none; gap: 8px; padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+header { flex-shrink: 0; min-height: 44px; padding: 0; border: 0; flex-wrap: nowrap; }
+h1 { font-size: 28px; }
+.brand-icon, .edition, .scope, .eyebrow, .muted, #recordHint { display: none; }
+.header-right { gap: 8px; }
+.icon-button { width: 44px; height: 44px; }
+.console { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, auto) auto; flex-shrink: 0; gap: 8px; align-items: center; }
+.instrument > button { padding: 0; min-height: 44px; font-size: 18px; }
+#gridButton { min-width: 0; max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.record-area { padding: 0; gap: 0; align-self: center; }
+#recordButton { min-width: 112px; min-height: 44px; padding: 10px 12px; box-shadow: none; font-size: 13px; letter-spacing: 1px; }
+.spectrum-wrap { order: 0; flex: 1; width: 100%; min-height: 0; padding: 0; gap: 0; justify-content: stretch; align-items: stretch; container-type: normal; }
+.spectrum { width: 100%; height: 100%; aspect-ratio: auto; flex: 1; padding: 3px; gap: 4px; container-type: size; }
+.key-index { display: none; }
+.key-label { left: 10%; bottom: 12%; right: 8%; gap: 5px; flex-direction: row; align-items: baseline; }
+.key-label b { font-size: clamp(22px, min(6cqw, 12cqh), 40px); }
+.key-label small { font-size: clamp(10px, min(2.6cqw, 5cqh), 14px); }
+.key-label sup { display: inline; font-size: 11px; vertical-align: super; margin-left: 3px; }
+.target { width: 17px; height: 17px; top: 17%; right: 12%; }
+#noteDisplay { font-size: clamp(26px, min(7cqw, 14cqh), 44px); }
+#solfegeDisplay { font-size: clamp(16px, min(4cqw, 8cqh), 26px); }
+#frequencyDisplay { font-size: clamp(11px, min(2.6cqw, 5cqh), 16px); }
+.grid-cell { gap: 3px; }
+.save-cell { font-size: clamp(10px, min(2.3cqw, 5cqh), 14px); }
+.save-cell > span:first-child { font-size: clamp(20px, min(5cqw, 8cqh), 30px); }
+.chord-panel { order: 1; width: 100%; align-self: stretch; flex-shrink: 0; }
+.chord-heading { min-height: 28px; margin: 0 0 4px; align-items: center; }
+.text-button { border: 1px solid #526142; background: #151b12; color: var(--acid); padding: 5px 12px; min-height: 28px; font-size: 11px; }
+.chord-buttons { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.chord-buttons button { min-height: 48px; font-size: 13px; padding: 6px 2px; }
+#gridDialog select, #chordDialog select, #chordDialog input { display: block; width: 100%; margin-top: 10px; }
+#chordDialog .setting-block { margin: 16px 0; }
+#chordError { color: var(--acid); font-size: 13px; min-height: 18px; }
+@media (max-width: 500px) and (orientation: portrait) {
+  .chord-buttons { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .instrument > button { font-size: 14px; gap: 5px; }
+  #gridButton { max-width: 122px; padding: 0 8px; font-size: 12px; }
+  #recordButton { min-width: 88px; padding: 10px 8px; gap: 6px; font-size: 12px; }
+  .key-label { flex-direction: column; gap: 2px; }
+  h1 { font-size: 25px; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  .machine { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); grid-template-rows: 44px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 6px; }
+  header { grid-column: 1; grid-row: 1; gap: 8px; }
+  h1 { font-size: 21px; }
+  .header-right { gap: 4px; }
+  .envelope-button { padding: 0 6px; }
+  .console { grid-column: 2; grid-row: 1; gap: 8px; }
+  .instrument > button { font-size: 14px; gap: 4px; }
+  #gridButton { max-width: 160px; font-size: 12px; }
+  #recordButton { min-width: 88px; padding: 10px 6px; font-size: 12px; }
+  .spectrum-wrap { grid-column: 1 / -1; grid-row: 2; }
+  .chord-panel { grid-column: 1 / -1; grid-row: 3; }
+  .chord-buttons { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .chord-buttons button { min-height: 44px; font-size: 12px; }
+  .target { right: 10%; top: 28%; width: 13px; height: 13px; }
+  .cell-caption { display: none; }
+  .grid-cell { flex-direction: row; gap: 10px; }
+  .save-cell > span:first-child { display: none; }
+}
+@media (orientation: landscape) and (max-width: 700px) {
+  .machine { grid-template-columns: 176px minmax(0, 1fr); gap: 6px; }
+  h1 { display: none; }
+  .brand:after { content: 'CS'; color: var(--acid); font-size: 23px; font-weight: bold; }
+  #gridButton { max-width: 112px; }
+}
+.chord-buttons button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

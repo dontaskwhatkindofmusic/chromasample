@@ -16,6 +16,18 @@ export const CHORDS = {
   sixth: {label: '6', name: 'Major sixth', intervals: [0, 4, 7, 9]},
   power: {label: '5', name: 'Power chord', intervals: [0, 7, 12]},
 };
+export function customChord(label, intervals) {
+  if(typeof label!=='string'||!label.trim()||label.trim().length>8)throw Error('Use a chord label of 1–8 characters.');
+  if(!Array.isArray(intervals)||intervals.length<1||intervals.length>6||intervals.some(n=>!Number.isInteger(n)||n<0||n>24))throw Error('Enter 1–6 whole semitone offsets from 0 to 24.');
+  const sorted=[...new Set(intervals)].sort((a,b)=>a-b);
+  if(sorted[0]!==0)throw Error('Include 0 for the root note.');
+  return {label:label.trim(),name:label.trim(),intervals:sorted};
+}
+export function resolveChord(chord){
+  if(typeof chord==='string'&&CHORDS[chord])return CHORDS[chord];
+  if(chord&&typeof chord==='object')return customChord(chord.label,chord.intervals);
+  throw Error('Unknown chord');
+}
 export const DEFAULT_ENVELOPE = {attack: .005, decay: .15, sustain: .8, release: .2, loop: false};
 export function normalizeEnvelope(value = {}) {
   const bounded = (key, min, max) => Number.isFinite(value[key])
@@ -28,7 +40,7 @@ export class ChordHolds {
   held = new Map();
   get current() { return [...this.held.values()].at(-1) ?? null; }
   press(id, chord) {
-    if (!CHORDS[chord]) throw new Error('Unknown chord');
+    resolveChord(chord);
     if (!this.held.has(id)) this.held.set(id, chord);
     return this.current;
   }
@@ -36,9 +48,8 @@ export class ChordHolds {
   clear() { this.held.clear(); }
 }
 export function chordNotes(root, chord) {
-  if (!Number.isInteger(root) || root < 0 || root > 12) throw new Error('Invalid root');
-  if (chord !== null && !CHORDS[chord]) throw new Error('Unknown chord');
-  return (chord === null ? [0] : CHORDS[chord].intervals).map(interval => root + interval);
+  if (!Number.isInteger(root) || root < -24 || root > 72) throw new Error('Invalid root');
+  return (chord === null ? [0] : resolveChord(chord).intervals).map(interval => root + interval);
 }
 export function envelopeLevel(elapsed, envelope) {
   if (elapsed <= 0) return 0;

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/audio.test.mjs && node tests/keyboard.test.mjs && node tests/performance.test.mjs && node tests/playing.test.mjs",
+    "test": "node tests/audio.test.mjs && node tests/keyboard.test.mjs && node tests/performance.test.mjs && node tests/playing.test.mjs && node tests/scales.test.mjs",
     "start": "python3 -m http.server 4173 --bind 127.0.0.1 --directory docs"
   }
 }

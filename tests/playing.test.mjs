@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 class Element {
   constructor(){this.children=[];this.events={};this.style={setProperty(){}};this.dataset={};this.value='70';this.classList={add(){},remove(){},toggle(){}};}
+  remove(){}
+  replaceChildren(){this.children=[];}
   append(child){this.children.push(child);}
   insertBefore(child){this.children.push(child);}
   setAttribute(){} addEventListener(name,fn){(this.events[name]??=[]).push(fn);}
@@ -25,7 +27,8 @@ class AudioContext {
   createBufferSource(){const node={...connectable(),playbackRate:param(),start(){this.started=true;},stop(time){this.stopped=time;}};nodes.push(node);return node;}
 }
 globalThis.window={AudioContext,addEventListener:(...args)=>windowEvents.addEventListener(...args)};
-globalThis.localStorage={getItem:()=>null,setItem(){}};
+let savedPreferences;
+globalThis.localStorage={getItem:()=>null,setItem:(key,value)=>{savedPreferences=JSON.parse(value);}};
 globalThis.indexedDB={open:()=>({})};
 globalThis.requestAnimationFrame=()=>{};
 await import('../docs/app.js');
@@ -47,4 +50,19 @@ assert.ok(nodes.slice(-3).every(node=>node.loop));
 assert.ok(Math.abs(nodes.at(-1).playbackRate.value-2**(19/12))<1e-6);
 minor.dispatch('pointercancel',{pointerId:99});assert.ok(nodes.at(-1).stopped);
 windowEvents.dispatch('blur',{});assert.ok(nodes.every(node=>node.stopped));
+// Remap to D major: the second pad must now be E4 (four semitones above C4).
+get('gridRoot').value='2';get('gridScale').value='major';get('gridOctave').value='4';get('gridScale').onchange();
+await key('keydown','w','KeyW');assert.ok(Math.abs(nodes.at(-1).playbackRate.value-2**(4/12))<1e-6);
+await key('keyup','w','KeyW');
+get('chordSlot').value='0';get('chordLabel').value='STACK';get('chordIntervals').value='0, 5, 12';
+get('chordForm').onsubmit({preventDefault(){}});
+assert.equal(get('chordButtons').children[0].textContent,'STACK');
+assert.equal(savedPreferences.chordSlots[0].label,'STACK');
+assert.deepEqual(savedPreferences.grid,{root:2,scale:'major',octave:4});
+await key('keydown','1','Digit1');await key('keydown','a','KeyA');
+assert.ok(Math.abs(nodes.at(-1).playbackRate.value-2**(14/12))<1e-6);
+windowEvents.dispatch('blur',{});
+get('chordIntervals').value='0, , 100';get('chordForm').onsubmit({preventDefault(){}});
+assert.equal(get('chordButtons').children[0].textContent,'STACK');
+assert.match(get('chordError').textContent,/whole numbers/);
 console.log('Playing checks passed: live chord changes, root continuity, keyboard/touch combination, loop playback, cancel, and blur cleanup.');

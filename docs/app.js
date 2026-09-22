@@ -1,30 +1,45 @@
 import {encode,decode,trim,detectPitch} from './audio-utils.js';
 import {noteAtPoint} from './keyboard.js';
-import {CHORDS, DEFAULT_ENVELOPE, normalizeEnvelope, ChordHolds, chordNotes, startEnvelope, releaseEnvelope, loopSamples} from './performance.js';
+import {CHORDS, customChord, resolveChord, DEFAULT_ENVELOPE, normalizeEnvelope, ChordHolds, chordNotes, startEnvelope, releaseEnvelope, loopSamples} from './performance.js';
+import {NOTE_NAMES,SCALES,normalizeGrid,scalePads} from './scales.js';
 const $=id=>document.getElementById(id);
-const names=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B','C'];
-const syllables=['DO','DI','RE','RI','MI','FA','FI','SO','SI','LA','LI','TI','DO'];
-const colors=['#ff5145','#ff7036','#ff9d31','#ffc13a','#f4e34d','#9cdd4b','#4bcb7d','#33b8cd','#4088e5','#6262dd','#8c5cde','#b855da','#e363d2'];
-const sharps=[1,3,6,8,10];let workletLoaded=false;let ctx,master,analyser,buffer,currentId='factory',currentRecord=null,db;
+let workletLoaded=false;let ctx,master,analyser,buffer,currentId='factory',currentRecord=null,db;
 let phase='idle',stream,capture,source,silent,frames=[],preRoll=[],frameCount=0,recordRate=48000,armTimer,captureTimer,loading=false,noticeTimer;
 const voices=new Map(),keys=[];let bank=[];
 const chordHolds=new ChordHolds(), soundingParts=new Set();
 const chordSlots=['major','minor','sus4','diminished','augmented','seventh','major7','minor7'];
+let gridSettings=normalizeGrid(),pads=scalePads(gridSettings);
 let envelope={...DEFAULT_ENVELOPE};
 const loopBuffers=new WeakMap();
 try {
   const preferences=JSON.parse(localStorage.getItem('chromasample-performance')||'{}');
   envelope=normalizeEnvelope(preferences.envelope);
   if(CHORDS[preferences.extraChord])chordSlots[7]=preferences.extraChord;
+  if(Array.isArray(preferences.chordSlots)&&preferences.chordSlots.length===8){
+    preferences.chordSlots.forEach((chord,i)=>{try{resolveChord(chord);chordSlots[i]=chord;}catch{}});
+  }
+  gridSettings=normalizeGrid(preferences.grid);pads=scalePads(gridSettings);
 } catch {}
-function savePerformance(){try{localStorage.setItem('chromasample-performance',JSON.stringify({envelope,extraChord:chordSlots[7]}));}catch{}}
+function savePerformance(){try{localStorage.setItem('chromasample-performance',JSON.stringify({envelope,chordSlots,grid:gridSettings}));}catch{}}
 
 function notify(message){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),4500);}
 function state(label){$('stateLabel').textContent='● '+label;}
-function renderKeys(){names.forEach((name,i)=>{const key=document.createElement('button');key.className='key'+(sharps.includes(i)?' sharp':'');key.style.setProperty('--color',colors[i]);key.dataset.note=i;key.setAttribute('aria-label',`${name}${i===12?5:4}, ${syllables[i]}`);key.innerHTML=`<span class="key-index">${String(i+1).padStart(2,'0')}</span><span class="target"><i></i></span><span class="key-label"><b>${name}${i===12?'⁺':''}</b><small>${sharps.includes(i)?['','D♭','','E♭','','','G♭','','A♭','','B♭'][i]:syllables[i]}</small></span>`;$('spectrum').insertBefore(key,$('spectrum').querySelector('.grid-cell'));keys.push(key);key.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();play(i,'focus'+i);}});key.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();release('focus'+i);}});key.addEventListener('blur',()=>release('focus'+i));});}
+function renderKeys(){
+  for(const key of keys)key.remove();keys.length=0;
+  pads.forEach((pad,i)=>{
+    const key=document.createElement('button');key.className='key'+(pad.sharp?' sharp':'');
+    key.style.setProperty('--color',pad.color);key.dataset.note=i;
+    key.setAttribute('aria-label',`${pad.name}${pad.octave}, ${pad.solfege}`);
+    key.innerHTML=`<span class="key-index">${String(i+1).padStart(2,'0')}</span><span class="target"><i></i></span><span class="key-label"><b>${pad.name}<sup>${pad.octave}</sup></b><small>${pad.solfege}</small></span>`;
+    $('spectrum').insertBefore(key,$('spectrum').querySelector('.grid-cell'));keys.push(key);
+    key.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();play(i,'focus'+i);}});
+    key.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();release('focus'+i);}});
+    key.addEventListener('blur',()=>release('focus'+i));
+  });
+}
 async function audio(resume=true){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});master=ctx.createGain();master.gain.value=Number($('volume').value)/100*.6;const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-12;limiter.knee.value=12;limiter.ratio.value=8;analyser=ctx.createAnalyser();analyser.fftSize=1024;master.connect(limiter).connect(analyser).connect(ctx.destination);factory();draw();}if(resume&&ctx.state!=='running')await ctx.resume();}
 function factory(){buffer=ctx.createBuffer(1,ctx.sampleRate*1.8,ctx.sampleRate);const data=buffer.getChannelData(0);for(let i=0;i<data.length;i++){const t=i/ctx.sampleRate;data[i]=(.6*Math.sin(2*Math.PI*261.6256*t)+.22*Math.sin(2*Math.PI*523.251*t)+.12*Math.sin(2*Math.PI*785.0*t))*Math.exp(-3.3*t)*Math.min(1,t/.006);}currentRecord=null;currentId='factory';$('instrumentName').textContent='Glass signal';$('sampleInfo').textContent='FACTORY TONE / READY TO PLAY';$('saveButton').disabled=true;$('pitchLabel').textContent='C4 · 261.6 Hz';}
-function updateNote(i){const frequency=261.625565*2**(i/12);$('noteDisplay').textContent=names[i];$('noteDisplay').style.color=colors[i];$('solfegeDisplay').textContent=syllables[i];$('frequencyDisplay').textContent=frequency.toFixed(1)+' Hz';}
+function updateNote(i){const pad=pads[i],frequency=261.625565*2**(pad.offset/12);$('noteDisplay').textContent=pad.name;$('noteDisplay').style.color=pad.color;$('solfegeDisplay').textContent=pad.solfege;$('frequencyDisplay').textContent=frequency.toFixed(1)+' Hz';}
 function refreshKeys(){
   keys.forEach((key,i)=>key.classList.toggle('active',[...voices.values()].some(group=>group.note===i)));
 }
@@ -51,7 +66,7 @@ function stopPart(part,quick=false){
 }
 function voiceChord(group){
   if(!group.ready)return;
-  const notes=chordNotes(group.note,chordHolds.current);
+  const notes=chordNotes(group.pitch,chordHolds.current);
   for(const [note,part] of group.parts){
     if(!notes.includes(note)){stopPart(part);group.parts.delete(note);}
   }
@@ -76,7 +91,7 @@ function voiceChord(group){
 }
 async function play(i,id){
   if(phase!=='idle'||loading||voices.has(id))return;
-  const group={note:i,parts:new Map(),live:new Set(),held:true,ready:false};
+  const group={note:i,pitch:pads[i].offset,parts:new Map(),live:new Set(),held:true,ready:false};
   voices.set(id,group);
   try{
     await audio();if(voices.get(id)!==group)return;
@@ -100,7 +115,7 @@ function allOff(){
 }
 function updateChord(revoice=true){
   const chord=chordHolds.current;
-  $('chordStatus').textContent=chord?CHORDS[chord].label:'SINGLE';
+  $('chordStatus').textContent=chord?resolveChord(chord).label:'SINGLE';
   for(const button of $('chordButtons').children){
     const active=chord!==null&&chordSlots[Number(button.dataset.slot)]===chord;
     button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
@@ -115,7 +130,7 @@ function liftChord(id){if(chordHolds.held.has(id)){chordHolds.release(id);update
 function renderChords(){
   chordSlots.forEach((chord,slot)=>{
     const button=document.createElement('button');button.type='button';button.dataset.slot=slot;
-    button.textContent=CHORDS[chord].label;button.setAttribute('aria-label',`Hold ${CHORDS[chord].name} chord (keyboard ${slot+1})`);
+    button.textContent=resolveChord(chord).label;button.setAttribute('aria-label',`Hold ${resolveChord(chord).name} chord (keyboard ${slot+1})`);
     button.setAttribute('aria-pressed','false');
     button.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();button.setPointerCapture(e.pointerId);holdChord('chord'+e.pointerId,slot);});
     for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,e=>liftChord('chord'+e.pointerId));
@@ -140,11 +155,53 @@ $('loopHeld').onchange=()=>{envelope.loop=$('loopHeld').checked;savePerformance(
 $('resetEnvelope').onclick=()=>{envelope={...DEFAULT_ENVELOPE};renderEnvelope();savePerformance();};
 $('envelopeButton').onclick=()=>{allOff();$('envelopeDialog').showModal();};
 for(const [id,chord] of Object.entries(CHORDS)){
-  const option=document.createElement('option');option.value=id;option.textContent=chord.name;$('extraChord').append(option);
+  const option=document.createElement('option');option.value=id;option.textContent=chord.name;$('chordPreset').append(option);
 }
-$('extraChord').value=chordSlots[7];$('extraChord').onchange=()=>{
-  allOff();chordSlots[7]=$('extraChord').value;$('chordButtons').replaceChildren();renderChords();savePerformance();
+function loadChordEditor(){
+  const chord=resolveChord(chordSlots[Number($('chordSlot').value)]);
+  $('chordLabel').value=chord.label;$('chordIntervals').value=chord.intervals.join(', ');
+  $('chordPreset').value=Object.keys(CHORDS).find(id=>CHORDS[id].label===chord.label&&CHORDS[id].intervals.join()===chord.intervals.join())||'custom';
+  $('chordError').textContent='';
+}
+function updateSlotLabels(){
+  $('chordSlot').replaceChildren();
+  chordSlots.forEach((chord,i)=>{const option=document.createElement('option');option.value=i;option.textContent=`${i+1} · ${resolveChord(chord).label}`;$('chordSlot').append(option);});
+}
+updateSlotLabels();$('chordSlot').value='0';
+$('customizeChords').onclick=()=>{allOff();loadChordEditor();$('chordDialog').showModal();};
+$('chordSlot').onchange=loadChordEditor;
+$('chordPreset').onchange=()=>{
+  const chord=CHORDS[$('chordPreset').value];if(!chord)return;
+  $('chordLabel').value=chord.label;$('chordIntervals').value=chord.intervals.join(', ');
 };
+$('chordForm').onsubmit=e=>{
+  e.preventDefault();
+  try{
+    const values=$('chordIntervals').value.split(',').map(text=>text.trim());
+    if(values.some(text=>!/^\d+$/.test(text)))throw Error('Use comma-separated whole numbers, such as 0, 4, 7.');
+    const chord=customChord($('chordLabel').value,values.map(Number)),slot=Number($('chordSlot').value);
+    allOff();chordSlots[slot]=chord;$('chordButtons').replaceChildren();renderChords();
+    updateSlotLabels();$('chordSlot').value=String(slot);savePerformance();loadChordEditor();
+    $('chordError').textContent='Button saved.';
+  }catch(error){$('chordError').textContent=error.message;}
+};
+for(const [i,name] of NOTE_NAMES.entries()){
+  const option=document.createElement('option');option.value=i;option.textContent=name;$('gridRoot').append(option);
+}
+for(const [id,scale] of Object.entries(SCALES)){
+  const option=document.createElement('option');option.value=id;option.textContent=scale.name;$('gridScale').append(option);
+}
+function renderGridControls(){
+  $('gridRoot').value=gridSettings.root;$('gridScale').value=gridSettings.scale;$('gridOctave').value=gridSettings.octave;
+  $('gridButton').textContent=`${NOTE_NAMES[gridSettings.root]} · ${SCALES[gridSettings.scale].name}`;
+  $('gridRange').textContent=`${pads[0].name}${pads[0].octave} — ${pads[12].name}${pads[12].octave} · 13 playable pads`;
+}
+$('gridButton').onclick=()=>{allOff();$('gridDialog').showModal();};
+for(const id of ['gridRoot','gridScale','gridOctave'])$(id).onchange=()=>{
+  allOff();gridSettings=normalizeGrid({root:Number($('gridRoot').value),scale:$('gridScale').value,octave:Number($('gridOctave').value)});
+  pads=scalePads(gridSettings);renderKeys();renderGridControls();updateNote(0);savePerformance();
+};
+renderGridControls();
 renderChords();renderEnvelope();
 const pointers=new Map();
 function noteAt(e){return noteAtPoint(e.clientX,e.clientY,keys.map(key=>key.getBoundingClientRect()));}
@@ -192,6 +249,6 @@ let tick=0;function draw(){const canvas=$('scope'),g=canvas.getContext('2d'),dat
 document.addEventListener('visibilitychange',()=>{if(document.hidden){allOff();if(phase==='recording')finishRecording();else if(phase==='armed'){phase='idle';cleanMic();state('SYSTEM READY');}}});
 let installPrompt;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installButton').hidden=false;});$('installButton').onclick=async()=>{if(installPrompt){await installPrompt.prompt();installPrompt=null;$('installButton').hidden=true;}};
 for(const dialog of document.querySelectorAll('dialog'))dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close();}});
-renderKeys();openDB().then(async result=>{db=result;bank=await transaction('readonly',store=>store.getAll());}).catch(()=>notify('Sound bank unavailable. You can still record and play.'));
+renderKeys();updateNote(0);openDB().then(async result=>{db=result;bank=await transaction('readonly',store=>store.getAll());}).catch(()=>notify('Sound bank unavailable. You can still record and play.'));
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 if(document.modelContext?.registerTool){const lifecycle=new AbortController();try{Promise.resolve(document.modelContext.registerTool({name:'list_instruments',description:'List the factory instrument and sounds saved on this device.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>({instruments:[{id:'factory',name:'Glass signal'},...bank.map(s=>({id:s.id,name:s.name}))],selected:currentId})},{signal:lifecycle.signal})).catch(()=>{});Promise.resolve(document.modelContext.registerTool({name:'select_instrument',description:'Select a saved instrument for the visible spectrum keyboard. Does not start audio playback.',inputSchema:{type:'object',properties:{id:{type:'string'}},required:['id'],additionalProperties:false},annotations:{readOnlyHint:false},execute:async input=>{if(!input||typeof input.id!=='string')throw Error('An instrument id is required.');if(phase!=='idle'||loading)throw Error('Finish recording first.');const item=bank.find(s=>s.id===input.id);if(!item&&input.id!=='factory')throw Error('Instrument not found.');await audio(false);allOff();item?loadRecord(item):factory();return {selected:currentId,name:$('instrumentName').textContent};}},{signal:lifecycle.signal})).catch(()=>{});}catch{}window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});}
