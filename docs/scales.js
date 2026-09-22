@@ -16,7 +16,7 @@ export const SCALES={
 const solfege=['DO','RA','RE','ME','MI','FA','FI','SO','LE','LA','TE','TI'];
 export const SPECTRUM=['#ff5145','#ff7036','#ff9d31','#ffc13a','#f4e34d','#9cdd4b','#4bcb7d','#33b8cd','#4088e5','#6262dd','#8c5cde','#b855da','#e363d2'];
 export function normalizeGrid(value={}){
-  return {scale:SCALES[value?.scale]?value.scale:'chromatic',root:Number.isInteger(value?.root)&&value.root>=0&&value.root<12?value.root:0,octave:Number.isInteger(value?.octave)&&value.octave>=2&&value.octave<=5?value.octave:4};
+  return {scale:SCALES[value?.scale]?value.scale:'chromatic',root:Number.isInteger(value?.root)&&value.root>=0&&value.root<12?value.root:0,octave:Number.isInteger(value?.octave)&&value.octave>=2&&value.octave<=5?value.octave:3};
 }
 export function scalePads(settings){
   const {scale,root,octave}=normalizeGrid(settings),steps=SCALES[scale].intervals;

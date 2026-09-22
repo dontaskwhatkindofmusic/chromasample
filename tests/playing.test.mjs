@@ -20,6 +20,8 @@ const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},setTarg
 const connectable=()=>({connect(){return this;},disconnect(){}});
 class AudioContext {
   state='running';sampleRate=32000;currentTime=1;destination={};
+  audioWorklet={addModule:async()=>{}};
+  createMediaStreamSource(){return connectable();}
   createGain(){return {...connectable(),gain:param()};}
   createDynamicsCompressor(){return {...connectable(),threshold:param(),knee:param(),ratio:param()};}
   createAnalyser(){return {...connectable(),fftSize:1024};}
@@ -36,9 +38,9 @@ const key=async(type,key,code)=>{documentEvents.dispatch(type,{key,code,target:{
 await key('keydown','a','KeyA');assert.equal(nodes.length,1);
 const root=nodes[0];
 await key('keydown','1','Digit1');assert.equal(nodes.length,3);assert.equal(root.stopped,undefined);
-assert.ok(Math.abs(nodes[1].playbackRate.value-2**(4/12))<1e-6);
+assert.ok(Math.abs(nodes[1].playbackRate.value-2**(-8/12))<1e-6);
 await key('keydown','2','Digit2');assert.equal(nodes.length,4);assert.ok(nodes[1].stopped);
-assert.ok(Math.abs(nodes[3].playbackRate.value-2**(3/12))<1e-6);
+assert.ok(Math.abs(nodes[3].playbackRate.value-2**(-9/12))<1e-6);
 await key('keyup','2','Digit2');assert.equal(nodes.length,5); // Restore the still-held major modifier.
 await key('keyup','1','Digit1');assert.equal(root.stopped,undefined);
 await key('keyup','a','KeyA');assert.ok(root.stopped);
@@ -47,7 +49,7 @@ const minor=get('chordButtons').children[1];
 minor.dispatch('pointerdown',{button:0,pointerId:99,preventDefault(){}});
 await key('keydown','k','KeyK');assert.equal(nodes.length,8);
 assert.ok(nodes.slice(-3).every(node=>node.loop));
-assert.ok(Math.abs(nodes.at(-1).playbackRate.value-2**(19/12))<1e-6);
+assert.ok(Math.abs(nodes.at(-1).playbackRate.value-2**(7/12))<1e-6);
 minor.dispatch('pointercancel',{pointerId:99});assert.ok(nodes.at(-1).stopped);
 windowEvents.dispatch('blur',{});assert.ok(nodes.every(node=>node.stopped));
 // Remap to D major: the second pad must now be E4 (four semitones above C4).
@@ -86,3 +88,57 @@ assert.equal(savedPreferences.keyboardView,false);
 assert.equal(get('chordStatus').textContent,'SINGLE');
 get('keyboardViewButton').onclick();assert.equal(savedPreferences.keyboardView,true);
 assert.ok(nodes.every(node=>node.stopped));
+
+// Safari rejects getUserMedia in a playback-only session. Exercise the real
+// record button and ensure every exit stops capture before restoring that mode.
+document.body=new Element();
+let sessionType='playback',liveTracks=0,captureRequests=0,denyCapture=false;
+const session={
+  get type(){return sessionType;},
+  set type(value){
+    if(value!=='play-and-record')assert.equal(liveTracks,0,'Stop microphone before restoring the audio session');
+    sessionType=value;
+  }
+};
+const mediaDevices={async getUserMedia(){
+  captureRequests++;
+  if(navigator.audioSession===session)assert.equal(sessionType,'play-and-record','Select capture mode before requesting microphone');
+  if(denyCapture)throw Object.assign(new Error('Permission denied'),{name:'NotAllowedError'});
+  liveTracks++;
+  return {getTracks:()=>[{stop(){liveTracks--;}}]};
+}};
+Object.defineProperty(globalThis,'navigator',{configurable:true,value:{audioSession:session,mediaDevices}});
+let failWorklet=true;
+globalThis.AudioWorkletNode=class {
+  constructor(){if(failWorklet)throw Error('Worklet setup failed');this.port={};}
+  connect(){return this;} disconnect(){}
+};
+await get('recordButton').onclick();
+assert.equal(liveTracks,0);assert.equal(sessionType,'playback');
+assert.match(get('notice').textContent,/Worklet setup failed/);
+failWorklet=false;
+get('thresholdEnabled').checked=true;
+for(const initialType of ['playback','auto']){
+  sessionType=initialType;
+  await get('recordButton').onclick();
+  assert.equal(get('recordText').textContent,'CANCEL');
+  assert.equal(sessionType,'play-and-record');assert.equal(liveTracks,1);
+  await get('recordButton').onclick();
+  assert.equal(liveTracks,0);assert.equal(sessionType,initialType);
+}
+denyCapture=true;
+await get('recordButton').onclick();
+assert.equal(sessionType,'auto');assert.equal(liveTracks,0);
+assert.equal(get('recordButton').disabled,false);
+assert.match(get('notice').textContent,/Microphone access is blocked/);
+denyCapture=false;
+// No Audio Session API: normal recording remains available.
+delete navigator.audioSession;
+await get('recordButton').onclick();assert.equal(liveTracks,1);
+await get('recordButton').onclick();assert.equal(liveTracks,0);
+// An exposed but unsupported setter must not block microphone capture either.
+navigator.audioSession={get type(){return 'auto';},set type(value){throw Error('Unsupported');}};
+await get('recordButton').onclick();assert.equal(liveTracks,1);
+await get('recordButton').onclick();assert.equal(liveTracks,0);
+assert.equal(captureRequests,6);
+console.log('Recording checks passed: Safari capture mode, repeated recording, cancellation, permission/setup failures, and optional API fallback.');

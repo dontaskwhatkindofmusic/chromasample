@@ -6,7 +6,7 @@
 
 <div id="spectrum" class="spectrum">
 <div class="grid-cell note-cell" aria-label="Current note"><span class="cell-caption">NOTE</span><span id="noteDisplay">C</span></div>
-<div class="grid-cell frequency-cell" aria-label="Current solfege and frequency"><b id="solfegeDisplay">DO</b><span id="frequencyDisplay">261.6 Hz</span></div>
+<div class="grid-cell frequency-cell" aria-label="Current solfege and frequency"><b id="solfegeDisplay">DO</b><span id="frequencyDisplay">130.8 Hz</span></div>
 <button id="saveButton" class="grid-cell save-cell" disabled><span aria-hidden="true">＋</span><span>SAVE SOUND</span></button>
 </div></section>
 <section class="chord-panel" aria-label="Hold a chord modifier while playing notes">
@@ -18,7 +18,7 @@
 <dialog id="gridDialog"><form method="dialog"><div class="dialog-heading"><h2>Grid scale</h2><button class="icon-button" aria-label="Close grid scale">×</button></div></form>
 <label class="setting-block">Root note<select id="gridRoot"></select></label>
 <label class="setting-block">Scale<select id="gridScale"></select></label>
-<label class="setting-block">Starting octave<select id="gridOctave"><option value="2">2 · low</option><option value="3">3</option><option value="4">4 · middle</option><option value="5">5 · high</option></select></label>
+<label class="setting-block">Starting octave<select id="gridOctave"><option value="2">2 · low</option><option value="3" selected>3</option><option value="4">4 · middle</option><option value="5">5 · high</option></select></label>
 <p id="gridRange" class="dialog-note"></p><p class="dialog-note">In Grid View, 13 pads ascend left to right, row by row. Desktop Keyboard View places these same notes at their QWERTY key positions. Notes repeat the scale into higher octaves. Chord shapes stay relative to each pad’s root; they are not forced into the selected scale.</p></dialog>
 <dialog id="chordDialog"><form method="dialog"><div class="dialog-heading"><h2>Your chord buttons</h2><button class="icon-button" aria-label="Close chord editor">×</button></div></form>
 <form id="chordForm"><label class="setting-block">Button position<select id="chordSlot"></select></label>

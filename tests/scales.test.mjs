@@ -10,7 +10,7 @@ for(const scale of Object.keys(SCALES))for(const root of [0,11])for(const octave
   assert.ok(pads.every((p,i)=>!i||p.offset>pads[i-1].offset));
   assert.ok(chordNotes(pads[12].offset,'major9').every(Number.isFinite));
 }
-assert.deepEqual(normalizeGrid({scale:'oops',root:100,octave:9}),{scale:'chromatic',root:0,octave:4});
+assert.deepEqual(normalizeGrid({scale:'oops',root:100,octave:9}),{scale:'chromatic',root:0,octave:3});
 const chord=customChord('OPEN',[12,0,7,7]);assert.deepEqual(chordNotes(-12,chord),[-12,-5,0]);
 assert.deepEqual(resolveChord(JSON.parse(JSON.stringify(chord))),chord);
 for(const intervals of [[1,4,7],[0,25],[0,.5],[],[0,1,2,3,4,5,6]])assert.throws(()=>customChord('BAD',intervals));

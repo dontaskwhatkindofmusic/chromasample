@@ -1,6 +1,6 @@
 // Include the scope so other GitHub Pages projects on this origin keep their caches.
 const CACHE_PREFIX = `chromasample:${self.registration.scope}:`;
-const CACHE = `${CACHE_PREFIX}v6`;
+const CACHE = `${CACHE_PREFIX}v8`;
 const FILES = [
   './', './index.html', './style.css', './app.js', './audio-utils.js',
   './keyboard.js', './performance.js', './scales.js', './capture.js', './manifest.webmanifest',
