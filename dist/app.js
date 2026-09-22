@@ -1,4 +1,5 @@
 import {encode,decode,trim,detectPitch} from './audio-utils.js';
+import {noteAtPoint} from './keyboard.js';
 const $=id=>document.getElementById(id);
 const names=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B','C'];
 const syllables=['DO','DI','RE','RI','MI','FA','FI','SO','SI','LA','LI','TI','DO'];
@@ -8,16 +9,34 @@ let phase='idle',stream,capture,source,silent,frames=[],preRoll=[],frameCount=0,
 const voices=new Map(),keys=[];let bank=[];
 function notify(message){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),4500);}
 function state(label){$('stateLabel').textContent='● '+label;}
-function renderKeys(){names.forEach((name,i)=>{const key=document.createElement('button');key.className='key'+(sharps.includes(i)?' sharp':'');key.style.setProperty('--color',colors[i]);key.dataset.note=i;key.setAttribute('aria-label',`${name}${i===12?5:4}, ${syllables[i]}`);key.innerHTML=`<span class="key-index">${String(i+1).padStart(2,'0')}</span><span class="target"><i></i></span><span class="key-label"><b>${name}${i===12?'⁺':''}</b><small>${sharps.includes(i)?['','D♭','','E♭','','','G♭','','A♭','','B♭'][i]:syllables[i]}</small></span>`;$('spectrum').append(key);keys.push(key);key.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();play(i,'focus'+i);}});key.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();release('focus'+i);}});key.addEventListener('blur',()=>release('focus'+i));});}
+function renderKeys(){names.forEach((name,i)=>{const key=document.createElement('button');key.className='key'+(sharps.includes(i)?' sharp':'');key.style.setProperty('--color',colors[i]);key.dataset.note=i;key.setAttribute('aria-label',`${name}${i===12?5:4}, ${syllables[i]}`);key.innerHTML=`<span class="key-index">${String(i+1).padStart(2,'0')}</span><span class="target"><i></i></span><span class="key-label"><b>${name}${i===12?'⁺':''}</b><small>${sharps.includes(i)?['','D♭','','E♭','','','G♭','','A♭','','B♭'][i]:syllables[i]}</small></span>`;$('spectrum').insertBefore(key,$('spectrum').querySelector('.grid-cell'));keys.push(key);key.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();play(i,'focus'+i);}});key.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();release('focus'+i);}});key.addEventListener('blur',()=>release('focus'+i));});}
 async function audio(resume=true){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});master=ctx.createGain();master.gain.value=Number($('volume').value)/100*.6;const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-12;limiter.knee.value=12;limiter.ratio.value=8;analyser=ctx.createAnalyser();analyser.fftSize=1024;master.connect(limiter).connect(analyser).connect(ctx.destination);factory();draw();}if(resume&&ctx.state!=='running')await ctx.resume();}
 function factory(){buffer=ctx.createBuffer(1,ctx.sampleRate*1.8,ctx.sampleRate);const data=buffer.getChannelData(0);for(let i=0;i<data.length;i++){const t=i/ctx.sampleRate;data[i]=(.6*Math.sin(2*Math.PI*261.6256*t)+.22*Math.sin(2*Math.PI*523.251*t)+.12*Math.sin(2*Math.PI*785.0*t))*Math.exp(-3.3*t)*Math.min(1,t/.006);}currentRecord=null;currentId='factory';$('instrumentName').textContent='Glass signal';$('sampleInfo').textContent='FACTORY TONE / READY TO PLAY';$('saveButton').disabled=true;$('pitchLabel').textContent='C4 · 261.6 Hz';}
 function updateNote(i){const frequency=261.625565*2**(i/12);$('noteDisplay').textContent=names[i];$('noteDisplay').style.color=colors[i];$('solfegeDisplay').textContent=syllables[i];$('frequencyDisplay').textContent=frequency.toFixed(1)+' Hz';}
 async function play(i,id){if(phase!=='idle'||loading||voices.has(id))return;const token={note:i};voices.set(id,token);try{await audio();if(voices.get(id)!==token)return;const node=ctx.createBufferSource(),gain=ctx.createGain();node.buffer=buffer;node.playbackRate.value=261.625565*2**(i/12)/(currentRecord?.root||261.625565);gain.gain.setValueAtTime(0,ctx.currentTime);gain.gain.linearRampToValueAtTime(1,ctx.currentTime+.005);node.connect(gain).connect(master);Object.assign(token,{node,gain});node.start();keys[i].classList.add('active');updateNote(i);node.onended=()=>{if(voices.get(id)===token)voices.delete(id);if(![...voices.values()].some(v=>v.note===i))keys[i].classList.remove('active');node.disconnect();gain.disconnect();};}catch(e){voices.delete(id);notify('Audio could not start. Try tapping again.');}}
 function release(id){const voice=voices.get(id);if(!voice)return;voices.delete(id);if(voice.gain){voice.gain.gain.cancelScheduledValues(ctx.currentTime);voice.gain.gain.setTargetAtTime(0,ctx.currentTime,.03);voice.node.stop(ctx.currentTime+.16);}if(![...voices.values()].some(v=>v.note===voice.note))keys[voice.note].classList.remove('active');}
 function allOff(){for(const id of voices.keys())release(id);}
-const pointers=new Map();function noteAt(e){const rect=$('spectrum').getBoundingClientRect();return Math.max(0,Math.min(12,Math.floor((e.clientX-rect.left)/rect.width*13)));}
-$('spectrum').addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();$('spectrum').setPointerCapture(e.pointerId);const i=noteAt(e);pointers.set(e.pointerId,i);play(i,e.pointerId);});
-$('spectrum').addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const i=noteAt(e);if(i!==pointers.get(e.pointerId)){release(e.pointerId);pointers.set(e.pointerId,i);play(i,e.pointerId);}});
+const pointers=new Map();
+function noteAt(e){return noteAtPoint(e.clientX,e.clientY,keys.map(key=>key.getBoundingClientRect()));}
+$('spectrum').addEventListener('pointerdown',e=>{
+  if(e.button!==0)return;
+  const i=noteAt(e);
+  // Readouts and Save Sound are grid cells, but never musical keys.
+  if(i===null)return;
+  e.preventDefault();
+  $('spectrum').setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,i);
+  play(i,e.pointerId);
+});
+$('spectrum').addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId))return;
+  const i=noteAt(e);
+  if(i!==pointers.get(e.pointerId)){
+    release(e.pointerId);
+    pointers.set(e.pointerId,i);
+    if(i!==null)play(i,e.pointerId);
+  }
+});
 for(const event of ['pointerup','pointercancel','lostpointercapture'])$('spectrum').addEventListener(event,e=>{pointers.delete(e.pointerId);release(e.pointerId);});
 const keyboard='awsedftgyhujk';document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||/INPUT|SELECT|BUTTON/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;const i=keyboard.indexOf(e.key.toLowerCase());if(i>=0&&!e.repeat){e.preventDefault();play(i,e.code);}});document.addEventListener('keyup',e=>release(e.code));window.addEventListener('blur',allOff);
 function cleanMic(){clearTimeout(armTimer);clearTimeout(captureTimer);capture?.disconnect();source?.disconnect();silent?.disconnect();stream?.getTracks().forEach(t=>t.stop());if(capture)capture.port.onmessage=null;capture=source=silent=stream=null;document.body.classList.remove('recording');$('recordText').textContent='RECORD';$('recordHint').textContent='TAP. MAKE A SOUND. PLAY.';}

@@ -4,6 +4,7 @@ A dependency-free static PWA. Serve `dist/` over HTTPS (or localhost for develop
 
 - Tap RECORD, make a sound, and tap STOP or wait for the duration limit.
 - Settings provide sound-activated recording, trigger level, sample length, and volume.
+- The 4 × 4 grid contains 13 chromatic note pads, a current-note cell, a solfege/frequency cell, and Save Sound. Controls move beside the square grid in landscape.
 - Tap or slide across the spectrum. Multitouch supports chords. Desktop keys: A W S E D F T G Y H U J K.
 - SAVE SOUND stores an instrument in IndexedDB on this device. Select it from the instrument menu.
 - Offline support after the first complete load; install from your browser or Add to Home Screen.
@@ -14,4 +15,4 @@ Colors map perceptually to chromatic pitch; they are not literal conversions of 
 
 Run locally: `python3 -m http.server 4173 --directory dist`
 
-Run audio checks: `node tests/audio.test.mjs`
+Run audio and keyboard checks: `npm test`
