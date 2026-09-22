@@ -255,3 +255,28 @@ h1 { font-size: 28px; }
   #gridButton { max-width: 112px; }
 }
 .chord-buttons button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Desktop shortcuts and a physical QWERTY layout; touch keeps the 4 × 4 grid. */
+#keyboardViewButton, .shortcut { display: none; }
+@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+  #keyboardViewButton { display: inline-block; }
+  #keyboardViewButton[aria-pressed="true"] { background: var(--acid); color: #10140c; }
+  .shortcut { display: inline-flex; align-items: center; justify-content: center; font: bold 14px 'Courier New', monospace; border: 1px solid currentColor; border-radius: 3px; min-width: 25px; height: 25px; }
+  .note-shortcut { position: absolute; top: 10px; left: 10px; }
+  .chord-shortcut { margin-left: 12px; font-size: 12px; min-width: 22px; height: 22px; }
+  .spectrum.keyboard-view { grid-template-columns: repeat(16, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) 58px; }
+  .keyboard-view .key { grid-row: var(--keyboard-row); grid-column: var(--keyboard-column) / span 2; }
+  .keyboard-view .note-cell { grid-row: 3; grid-column: 1 / 6; }
+  .keyboard-view .frequency-cell { grid-row: 3; grid-column: 6 / 12; }
+  .keyboard-view .save-cell { grid-row: 3; grid-column: 12 / 17; }
+  .keyboard-view .grid-cell { flex-direction: row; gap: 12px; }
+  .keyboard-view .key-label { flex-direction: column; gap: 4px; }
+  .keyboard-view .key-label b { font-size: clamp(22px, 3cqw, 40px); }
+  .keyboard-view .key-label small { font-size: clamp(10px, 1.1cqw, 14px); }
+  .keyboard-view .target { top: 14px; right: 12px; }
+}
+@media (min-width: 701px) and (hover: hover) and (pointer: fine) and (max-height: 600px) {
+  .machine { display: flex; }
+  .keyboard-view .key-label { flex-direction: row; }
+  .keyboard-view .target { display: none; }
+}

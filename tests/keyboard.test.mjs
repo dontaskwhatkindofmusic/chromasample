@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {noteAtPoint} from '../docs/keyboard.js';
+import {noteAtPoint,keyboardAction,NOTE_KEYS,CHORD_KEYS} from '../docs/keyboard.js';
 // Same 4 × 4 layout at compact portrait and landscape pad sizes.
 for (const size of [62, 78, 110]) {
   const gap = 4, left = 17, top = 93;
@@ -24,3 +24,18 @@ for (const size of [62, 78, 110]) {
   assert.equal(noteAtPoint(left + 2, top - 1, pads), null);
 }
 console.log('Keyboard checks passed: all pads, row changes, gutters, readouts, and Save Sound exclusion.');
+
+for (const [index, key] of NOTE_KEYS.entries()) {
+  assert.deepEqual(keyboardAction({code: `Key${key.toUpperCase()}`, key}), {type: 'note', index});
+}
+for (const [index, key] of CHORD_KEYS.entries()) {
+  const code = key === ',' ? 'Comma' : `Key${key.toUpperCase()}`;
+  assert.deepEqual(keyboardAction({code, key}), {type: 'chord', index});
+  assert.deepEqual(keyboardAction({code: `Digit${index + 1}`, key: '!'}), {type: 'chord', index});
+  for (const modifier of ['ctrlKey', 'metaKey', 'altKey', 'repeat']) {
+    assert.equal(keyboardAction({code, key, [modifier]: true}), null);
+  }
+}
+assert.deepEqual(keyboardAction({code: 'KeyZ', key: 'y'}), {type: 'chord', index: 0});
+assert.deepEqual(keyboardAction({code: 'Comma', key: '<', shiftKey: true}), {type: 'chord', index: 7});
+assert.equal(keyboardAction({code: 'Space', key: ' '}), null);

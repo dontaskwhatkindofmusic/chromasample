@@ -1,5 +1,5 @@
 import {encode,decode,trim,detectPitch} from './audio-utils.js';
-import {noteAtPoint} from './keyboard.js';
+import {noteAtPoint,NOTE_KEYS,CHORD_KEYS,NOTE_POSITIONS,keyboardAction} from './keyboard.js';
 import {CHORDS, customChord, resolveChord, DEFAULT_ENVELOPE, normalizeEnvelope, ChordHolds, chordNotes, startEnvelope, releaseEnvelope, loopSamples} from './performance.js';
 import {NOTE_NAMES,SCALES,normalizeGrid,scalePads} from './scales.js';
 const $=id=>document.getElementById(id);
@@ -9,18 +9,20 @@ const voices=new Map(),keys=[];let bank=[];
 const chordHolds=new ChordHolds(), soundingParts=new Set();
 const chordSlots=['major','minor','sus4','diminished','augmented','seventh','major7','minor7'];
 let gridSettings=normalizeGrid(),pads=scalePads(gridSettings);
+let keyboardView=true;
 let envelope={...DEFAULT_ENVELOPE};
 const loopBuffers=new WeakMap();
 try {
   const preferences=JSON.parse(localStorage.getItem('chromasample-performance')||'{}');
   envelope=normalizeEnvelope(preferences.envelope);
+  keyboardView=preferences.keyboardView!==false;
   if(CHORDS[preferences.extraChord])chordSlots[7]=preferences.extraChord;
   if(Array.isArray(preferences.chordSlots)&&preferences.chordSlots.length===8){
     preferences.chordSlots.forEach((chord,i)=>{try{resolveChord(chord);chordSlots[i]=chord;}catch{}});
   }
   gridSettings=normalizeGrid(preferences.grid);pads=scalePads(gridSettings);
 } catch {}
-function savePerformance(){try{localStorage.setItem('chromasample-performance',JSON.stringify({envelope,chordSlots,grid:gridSettings}));}catch{}}
+function savePerformance(){try{localStorage.setItem('chromasample-performance',JSON.stringify({envelope,chordSlots,grid:gridSettings,keyboardView}));}catch{}}
 
 function notify(message){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),4500);}
 function state(label){$('stateLabel').textContent='● '+label;}
@@ -29,8 +31,11 @@ function renderKeys(){
   pads.forEach((pad,i)=>{
     const key=document.createElement('button');key.className='key'+(pad.sharp?' sharp':'');
     key.style.setProperty('--color',pad.color);key.dataset.note=i;
-    key.setAttribute('aria-label',`${pad.name}${pad.octave}, ${pad.solfege}`);
-    key.innerHTML=`<span class="key-index">${String(i+1).padStart(2,'0')}</span><span class="target"><i></i></span><span class="key-label"><b>${pad.name}<sup>${pad.octave}</sup></b><small>${pad.solfege}</small></span>`;
+    key.style.setProperty('--keyboard-row',NOTE_POSITIONS[i][0]);
+    key.style.setProperty('--keyboard-column',NOTE_POSITIONS[i][1]);
+    key.setAttribute('aria-label',`${pad.name}${pad.octave}, ${pad.solfege} (keyboard ${NOTE_KEYS[i].toUpperCase()})`);
+    key.setAttribute('aria-keyshortcuts',NOTE_KEYS[i].toUpperCase());
+    key.innerHTML=`<kbd class="shortcut note-shortcut">${NOTE_KEYS[i].toUpperCase()}</kbd><span class="key-index">${String(i+1).padStart(2,'0')}</span><span class="target"><i></i></span><span class="key-label"><b>${pad.name}<sup>${pad.octave}</sup></b><small>${pad.solfege}</small></span>`;
     $('spectrum').insertBefore(key,$('spectrum').querySelector('.grid-cell'));keys.push(key);
     key.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();play(i,'focus'+i);}});
     key.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();release('focus'+i);}});
@@ -130,7 +135,9 @@ function liftChord(id){if(chordHolds.held.has(id)){chordHolds.release(id);update
 function renderChords(){
   chordSlots.forEach((chord,slot)=>{
     const button=document.createElement('button');button.type='button';button.dataset.slot=slot;
-    button.textContent=resolveChord(chord).label;button.setAttribute('aria-label',`Hold ${resolveChord(chord).name} chord (keyboard ${slot+1})`);
+    button.textContent=resolveChord(chord).label;
+    const shortcut=document.createElement('kbd');shortcut.className='shortcut chord-shortcut';shortcut.textContent=CHORD_KEYS[slot].toUpperCase();button.append(shortcut);
+    button.setAttribute('aria-keyshortcuts',`${CHORD_KEYS[slot].toUpperCase()} ${slot+1}`);button.setAttribute('aria-label',`Hold ${resolveChord(chord).name} chord (keyboard ${CHORD_KEYS[slot].toUpperCase()} or ${slot+1})`);
     button.setAttribute('aria-pressed','false');
     button.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();button.setPointerCapture(e.pointerId);holdChord('chord'+e.pointerId,slot);});
     for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,e=>liftChord('chord'+e.pointerId));
@@ -225,14 +232,20 @@ $('spectrum').addEventListener('pointermove',e=>{
   }
 });
 for(const event of ['pointerup','pointercancel','lostpointercapture'])$('spectrum').addEventListener(event,e=>{pointers.delete(e.pointerId);release(e.pointerId);});
-const keyboard='awsedftgyhujk';
+function renderKeyboardView(){
+  $('spectrum').classList.toggle('keyboard-view',keyboardView);
+  $('keyboardViewButton').setAttribute('aria-pressed',String(keyboardView));
+}
+$('keyboardViewButton').onclick=()=>{allOff();keyboardView=!keyboardView;renderKeyboardView();savePerformance();};
+renderKeyboardView();
 document.addEventListener('keydown',e=>{
-  if(document.querySelector('dialog[open]')||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey||e.repeat)return;
-  if(/^[1-8]$/.test(e.key)){e.preventDefault();holdChord('number'+e.code,Number(e.key)-1);return;}
-  const i=keyboard.indexOf(e.key.toLowerCase());
-  if(i>=0){e.preventDefault();play(i,e.code);}
+  if(document.querySelector('dialog[open]')||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.target.isContentEditable)return;
+  const action=keyboardAction(e);if(!action)return;
+  e.preventDefault();
+  if(action.type==='chord')holdChord('keyboard'+e.code,action.index);
+  else play(action.index,e.code);
 });
-document.addEventListener('keyup',e=>{release(e.code);liftChord('number'+e.code);});
+document.addEventListener('keyup',e=>{release(e.code);liftChord('keyboard'+e.code);});
 window.addEventListener('blur',allOff);
 function cleanMic(){clearTimeout(armTimer);clearTimeout(captureTimer);capture?.disconnect();source?.disconnect();silent?.disconnect();stream?.getTracks().forEach(t=>t.stop());if(capture)capture.port.onmessage=null;capture=source=silent=stream=null;document.body.classList.remove('recording');$('recordText').textContent='RECORD';$('recordHint').textContent='TAP. MAKE A SOUND. PLAY.';}
 async function startRecording(){if(loading)return;if(phase==='recording'){await finishRecording();return;}if(phase==='armed'){phase='idle';cleanMic();state('RECORDING CANCELLED');return;}loading=true;$('recordButton').disabled=true;allOff();try{await audio();if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone needs HTTPS or localhost.');stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:false,noiseSuppression:false,autoGainControl:false}});if(!workletLoaded){await ctx.audioWorklet.addModule('./capture.js');workletLoaded=true;}recordRate=ctx.sampleRate;capture=new AudioWorkletNode(ctx,'capture');source=ctx.createMediaStreamSource(stream);silent=ctx.createGain();silent.gain.value=0;source.connect(capture).connect(silent).connect(ctx.destination);frames=[];preRoll=[];frameCount=0;phase=$('thresholdEnabled').checked?'armed':'recording';document.body.classList.add('recording');$('recordText').textContent=phase==='armed'?'CANCEL':'STOP';$('recordHint').textContent=phase==='armed'?'WAITING FOR YOUR SOUND…':'RECORDING YOUR NEXT INSTRUMENT';state(phase==='armed'?'WAITING FOR SOUND':'RECORDING');const maxFrames=Number($('duration').value)*recordRate;capture.port.onmessage=e=>{if(phase==='idle')return;const chunk=e.data;if(phase==='armed'){preRoll.push(chunk);if(preRoll.length>4)preRoll.shift();let sum=0;for(const x of chunk)sum+=x*x;if(Math.sqrt(sum/chunk.length)<10**(Number($('threshold').value)/20))return;phase='recording';clearTimeout(armTimer);frames=preRoll.slice();frameCount=frames.reduce((n,c)=>n+c.length,0);$('recordText').textContent='STOP';$('recordHint').textContent='SOUND FOUND. RECORDING…';state('RECORDING');}else{frames.push(chunk);frameCount+=chunk.length;}if(frameCount>=maxFrames)finishRecording();};armTimer=setTimeout(()=>{if(phase==='armed'){phase='idle';cleanMic();state('SYSTEM READY');notify('No sound detected. Lower the trigger level and try again.');}},15000);captureTimer=setTimeout(()=>{if(phase==='recording')finishRecording();else if(phase==='armed'){phase='idle';cleanMic();state('SYSTEM READY');}},20000);}catch(e){phase='idle';cleanMic();state('MICROPHONE UNAVAILABLE');notify(e.name==='NotAllowedError'?'Microphone access is blocked. Enable it in browser settings.':e.name==='NotFoundError'?'No microphone found. Connect one and try again.':e.message||'Could not access the microphone.');}finally{loading=false;$('recordButton').disabled=false;}}

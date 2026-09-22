@@ -66,3 +66,23 @@ get('chordIntervals').value='0, , 100';get('chordForm').onsubmit({preventDefault
 assert.equal(get('chordButtons').children[0].textContent,'STACK');
 assert.match(get('chordError').textContent,/whole numbers/);
 console.log('Playing checks passed: live chord changes, root continuity, keyboard/touch combination, loop playback, cancel, and blur cleanup.');
+
+// Each bottom-row shortcut holds its chord and releases without leaving voices.
+for (const [slot, letter] of [...'zxcvbnm,'].entries()) {
+  const code=letter===','?'Comma':`Key${letter.toUpperCase()}`;
+  await key('keydown',letter,code);
+  const before=nodes.length;
+  await key('keydown','a','KeyA');
+  assert.equal(nodes.length-before,slot>=5?4:3);
+  await key('keyup',letter,code);
+  assert.equal(get('chordStatus').textContent,'SINGLE');
+  await key('keyup','a','KeyA');
+}
+await key('keydown','z','KeyZ');await key('keydown','x','KeyX');
+assert.equal(get('chordStatus').textContent,'MIN');
+await key('keyup','x','KeyX');assert.equal(get('chordStatus').textContent,'STACK');
+get('keyboardViewButton').onclick();
+assert.equal(savedPreferences.keyboardView,false);
+assert.equal(get('chordStatus').textContent,'SINGLE');
+get('keyboardViewButton').onclick();assert.equal(savedPreferences.keyboardView,true);
+assert.ok(nodes.every(node=>node.stopped));
