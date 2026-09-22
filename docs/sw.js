@@ -1,9 +1,9 @@
 // Include the scope so other GitHub Pages projects on this origin keep their caches.
 const CACHE_PREFIX = `chromasample:${self.registration.scope}:`;
-const CACHE = `${CACHE_PREFIX}v3`;
+const CACHE = `${CACHE_PREFIX}v4`;
 const FILES = [
   './', './index.html', './style.css', './app.js', './audio-utils.js',
-  './keyboard.js', './capture.js', './manifest.webmanifest',
+  './keyboard.js', './performance.js', './capture.js', './manifest.webmanifest',
   './icon.svg', './icon-192.png', './icon-512.png',
 ];
 self.addEventListener('install', event => {
